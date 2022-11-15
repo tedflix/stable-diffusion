@@ -182,16 +182,12 @@ def generate(
                     )
 
                     modelFS.to(device)
-                    print("saving images")
+                    print("uploading images")
                     for i in range(batch_size):
 
                         x_samples_ddim = modelFS.decode_first_stage(samples_ddim[i].unsqueeze(0))
                         x_sample = torch.clamp((x_samples_ddim + 1.0) / 2.0, min=0.0, max=1.0)
                         all_samples.append(x_sample.to("cpu"))
-                        x_sample = 255.0 * rearrange(x_sample[0].cpu().numpy(), "c h w -> h w c")
-                        Image.fromarray(x_sample.astype(np.uint8)).save(
-                            os.path.join(sample_path, "seed_" + str(seed) + "_" + f"{base_count:05}.{img_format}")
-                        )
                         seeds += str(seed) + ","
                         seed += 1
                         base_count += 1
@@ -217,8 +213,7 @@ def generate(
     txt = (
         "Samples finished in "
         + str(round(time_taken, 3))
-        + " minutes and exported to "
-        + sample_path
+        + " minutes"
         + "\nSeeds used = "
         + seeds[:-1]
     )
