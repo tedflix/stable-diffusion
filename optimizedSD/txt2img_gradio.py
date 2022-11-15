@@ -205,7 +205,7 @@ def generate(
 
     toc = time.time()
 
-    time_taken = (toc - tic) / 60.0
+    time_taken = (toc - tic)
     grid = torch.cat(all_samples, 0)
     grid = make_grid(grid, nrow=n_iter)
     grid = 255.0 * rearrange(grid, "c h w -> h w c").cpu().numpy()
@@ -213,7 +213,7 @@ def generate(
     txt = (
         "Samples finished in "
         + str(round(time_taken, 3))
-        + " minutes"
+        + " seconds"
         + "\nSeeds used = "
         + seeds[:-1]
     )
