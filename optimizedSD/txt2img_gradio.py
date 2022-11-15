@@ -242,4 +242,7 @@ demo = gr.Interface(
     ],
     outputs=["image", "text"],
 )
-demo.launch()
+
+username = os.environ.get("GRADIO_USER")
+password = os.environ.get("GRADIO_PASS")
+demo.launch(auth=(username, password))
