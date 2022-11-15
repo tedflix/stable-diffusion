@@ -33,7 +33,7 @@ def chunk(it, size):
     return iter(lambda: tuple(islice(it, size)), ())
 
 
-def load_model_from_config(ckpt, verbose=False):
+def load_model_file(ckpt, verbose=False):
     print(f"Loading model from {ckpt}")
     pl_sd = torch.load(ckpt, map_location="cpu")
     if "global_step" in pl_sd:
@@ -41,43 +41,49 @@ def load_model_from_config(ckpt, verbose=False):
     sd = pl_sd["state_dict"]
     return sd
 
-config = "optimizedSD/v1-inference.yaml"
-ckpt = "models/ldm/stable-diffusion-v1/model.ckpt"
-sd = load_model_from_config(f"{ckpt}")
-li, lo = [], []
-for key, v_ in sd.items():
-    sp = key.split(".")
-    if (sp[0]) == "model":
-        if "input_blocks" in sp:
-            li.append(key)
-        elif "middle_block" in sp:
-            li.append(key)
-        elif "time_embed" in sp:
-            li.append(key)
-        else:
-            lo.append(key)
-for key in li:
-    sd["model1." + key[6:]] = sd.pop(key)
-for key in lo:
-    sd["model2." + key[6:]] = sd.pop(key)
+def load_model(ckpt):
+    config = "optimizedSD/v1-inference.yaml"
+    sd = load_model_file(f"{ckpt}")
+    li, lo = [], []
+    for key, v_ in sd.items():
+        sp = key.split(".")
+        if (sp[0]) == "model":
+            if "input_blocks" in sp:
+                li.append(key)
+            elif "middle_block" in sp:
+                li.append(key)
+            elif "time_embed" in sp:
+                li.append(key)
+            else:
+                lo.append(key)
+    for key in li:
+        sd["model1." + key[6:]] = sd.pop(key)
+    for key in lo:
+        sd["model2." + key[6:]] = sd.pop(key)
 
-config = OmegaConf.load(f"{config}")
+    config = OmegaConf.load(f"{config}")
 
-model = instantiate_from_config(config.modelUNet)
-_, _ = model.load_state_dict(sd, strict=False)
-model.eval()
+    model = instantiate_from_config(config.modelUNet)
+    _, _ = model.load_state_dict(sd, strict=False)
+    model.eval()
 
-modelCS = instantiate_from_config(config.modelCondStage)
-_, _ = modelCS.load_state_dict(sd, strict=False)
-modelCS.eval()
+    modelCS = instantiate_from_config(config.modelCondStage)
+    _, _ = modelCS.load_state_dict(sd, strict=False)
+    modelCS.eval()
 
-modelFS = instantiate_from_config(config.modelFirstStage)
-_, _ = modelFS.load_state_dict(sd, strict=False)
-modelFS.eval()
-del sd
+    modelFS = instantiate_from_config(config.modelFirstStage)
+    _, _ = modelFS.load_state_dict(sd, strict=False)
+    modelFS.eval()
+    del sd
 
+    return (model, modelCS, modelFS)
+
+models_list = {"standard":  load_model("models/sd-latest.ckpt"),
+               "finetuned": load_model("models/finetuned-1.ckpt")
+               }
 
 def generate(
+    model_type,
     prompt,
     ddim_steps,
     n_iter,
@@ -95,6 +101,11 @@ def generate(
     full_precision,
     sampler,
 ):
+    if model_type not in models_list:
+        model_type = "standard"
+
+    print(f"using {model_type} model")
+    model, modelCS, modelFS = models_list[model_type]
 
     C = 4
     f = 8
@@ -223,6 +234,7 @@ def generate(
 demo = gr.Interface(
     fn=generate,
     inputs=[
+        gr.Text(value="standard"),
         "text",
         gr.Slider(1, 1000, value=50),
         gr.Slider(1, 100, step=1),
