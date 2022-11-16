@@ -124,13 +124,16 @@ def generate(
     model, modelCS, modelFS = models_list[model_type]
 
     # negative prompts
-    anti_prompts = re.findall(r'\[([^[\]]+)\]', prompt)
+    anti_prompts = re.findall(r'\[([^[\]]+)]', prompt)
     anti_prompts = ", ".join(anti_prompts)
     print(f"negative: {anti_prompts}")
 
     # clean the prompt
     # remove negative prompts
-    prompt = re.sub(r'\[.*]', r'', prompt)
+    prompt = re.sub(r'\[[^[\]]+]', r'', prompt)
+
+    # remove leftover square brackets
+    prompt = re.sub(r'[[\]]', r'', prompt)
 
     # remove extra spaces
     prompt = re.sub(r'\s{2,}', r' ', prompt)
