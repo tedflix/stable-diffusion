@@ -164,11 +164,6 @@ def generate(
         modelCS.half()
 
     tic = time.time()
-    os.makedirs(outdir, exist_ok=True)
-    outpath = outdir
-    sample_path = os.path.join(outpath, "_".join(re.split(":| ", prompt)))[:150]
-    os.makedirs(sample_path, exist_ok=True)
-    base_count = len(os.listdir(sample_path))
     
     # n_rows = opt.n_rows if opt.n_rows > 0 else batch_size
     assert prompt is not None
@@ -226,7 +221,6 @@ def generate(
                         all_samples.append(x_sample.to("cpu"))
                         seeds += str(seed) + ","
                         seed += 1
-                        base_count += 1
 
                     if device != "cpu":
                         mem = torch.cuda.memory_allocated() / 1e6
