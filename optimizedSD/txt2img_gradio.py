@@ -32,6 +32,22 @@ def chunk(it, size):
     it = iter(it)
     return iter(lambda: tuple(islice(it, size)), ())
 
+# https://github.com/basujindal/stable-diffusion/pull/220/commits/946e2440f557339807a23a4601bb705323dce123
+def vectorize_prompt(modelCS, batch_size, prompt):
+    empty_result = modelCS.get_learned_conditioning(batch_size * [""])
+    result = torch.zeros_like(empty_result)
+    subprompts, weights = split_weighted_subprompts(prompt)
+    weights_sum = sum(weights)
+    cntr = 0
+    for i, subprompt in enumerate(subprompts):
+        cntr += 1
+        result = torch.add(result,
+                           modelCS.get_learned_conditioning(batch_size
+                                                            * [subprompt]),
+                           alpha=weights[i] / weights_sum)
+    if cntr == 0:
+        result = empty_result
+    return result
 
 def load_model_file(ckpt, verbose=False):
     print(f"Loading model from {ckpt}")
@@ -107,6 +123,26 @@ def generate(
     print(f"using {model_type} model")
     model, modelCS, modelFS = models_list[model_type]
 
+    # negative prompts
+    anti_prompts = re.findall(r'\[([^[\]]+)\]', prompt)
+    anti_prompts = ", ".join(anti_prompts)
+    print(f"negative: {anti_prompts}")
+
+    # clean the prompt
+    # remove negative prompts
+    prompt = re.sub(r'\[.*]', r'', prompt)
+
+    # remove extra spaces
+    prompt = re.sub(r'\s{2,}', r' ', prompt)
+
+    # remove extra commas like ,,
+    prompt = re.sub(r',{2,}', r',', prompt)
+
+    # remove possible comma and/or space at end
+    prompt = re.sub(r',*\s*$', r'', prompt)
+
+    print(f"cleaned prompt: {prompt}")
+    
     C = 4
     f = 8
     start_code = None
@@ -154,22 +190,11 @@ def generate(
                     modelCS.to(device)
                     uc = None
                     if scale != 1.0:
-                        uc = modelCS.get_learned_conditioning(batch_size * [""])
+                        uc = vectorize_prompt(modelCS, batch_size, anti_prompts)
                     if isinstance(prompts, tuple):
                         prompts = list(prompts)
 
-                    subprompts, weights = split_weighted_subprompts(prompts[0])
-                    if len(subprompts) > 1:
-                        c = torch.zeros_like(uc)
-                        totalWeight = sum(weights)
-                        # normalize each "sub prompt" and add it
-                        for i in range(len(subprompts)):
-                            weight = weights[i]
-                            # if not skip_normalize:
-                            weight = weight / totalWeight
-                            c = torch.add(c, modelCS.get_learned_conditioning(subprompts[i]), alpha=weight)
-                    else:
-                        c = modelCS.get_learned_conditioning(prompts)
+                    c = vectorize_prompt(modelCS, batch_size, prompts[0])
 
                     shape = [batch_size, C, Height // f, Width // f]
 
